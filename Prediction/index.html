@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StressVision AI — Real-Time Stress Detection</title>
+    <meta name="description" content="AI-powered stress detection using 1D CNN deep learning model with physiological sensor data including ECG, EDA, EMG, and more.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+    <!-- TensorFlow.js for real model inference -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <!-- Header -->
+    <header id="app-header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 40 40" fill="none">
+                        <path d="M20 4L4 12v16l16 8 16-8V12L20 4z" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <path d="M8 20h4l3-8 4 16 4-12 3 6h6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <h1>StressVision<span class="accent">AI</span></h1>
+                    <p class="tagline">1D CNN Stress Detection System</p>
+                </div>
+            </div>
+            <div class="header-badges">
+                <div class="badge badge-accuracy">
+                    <span class="badge-value">99%</span>
+                    <span class="badge-label">Accuracy</span>
+                </div>
+                <div class="badge badge-model">
+                    <span class="badge-value">1D CNN</span>
+                    <span class="badge-label">Model</span>
+                </div>
+                <div class="badge badge-channels">
+                    <span class="badge-value">8</span>
+                    <span class="badge-label">Channels</span>
+                </div>
+            </div>
+            <div id="model-status" class="model-status loading">Loading model...</div>
+        </div>
+    </header>
+
+    <main id="app-main">
+        <!-- Waveform Visualization -->
+        <section id="waveform-section">
+            <div class="section-header">
+                <h2><span class="pulse-dot"></span> Live Signal Monitor</h2>
+                <div class="monitor-controls">
+                    <button id="btn-start" class="btn btn-primary" onclick="toggleMonitor()">
+                        <span class="btn-icon">▶</span> Start Monitoring
+                    </button>
+                    <button id="btn-analyze" class="btn btn-accent" onclick="analyzeStress()" disabled>
+                        <span class="btn-icon">⚡</span> Analyze Stress
+                    </button>
+                </div>
+            </div>
+            <div class="waveform-grid">
+                <div class="waveform-card" data-channel="ecg">
+                    <div class="waveform-label">
+                        <span class="channel-dot" style="--dot-color: #00f5d4"></span>
+                        <span>ECG</span>
+                        <span class="waveform-value" id="ecg-value">--</span>
+                    </div>
+                    <canvas id="canvas-ecg" class="waveform-canvas"></canvas>
+                </div>
+                <div class="waveform-card" data-channel="eda">
+                    <div class="waveform-label">
+                        <span class="channel-dot" style="--dot-color: #fee440"></span>
+                        <span>EDA</span>
+                        <span class="waveform-value" id="eda-value">--</span>
+                    </div>
+                    <canvas id="canvas-eda" class="waveform-canvas"></canvas>
+                </div>
+                <div class="waveform-card" data-channel="emg">
+                    <div class="waveform-label">
+                        <span class="channel-dot" style="--dot-color: #f72585"></span>
+                        <span>EMG</span>
+                        <span class="waveform-value" id="emg-value">--</span>
+                    </div>
+                    <canvas id="canvas-emg" class="waveform-canvas"></canvas>
+                </div>
+                <div class="waveform-card" data-channel="resp">
+                    <div class="waveform-label">
+                        <span class="channel-dot" style="--dot-color: #7209b7"></span>
+                        <span>RESP</span>
+                        <span class="waveform-value" id="resp-value">--</span>
+                    </div>
+                    <canvas id="canvas-resp" class="waveform-canvas"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sensor Inputs & Results -->
+        <div class="content-grid">
+            <!-- Left Panel: Sensor Inputs -->
+            <section id="sensor-panel">
+                <div class="section-header">
+                    <h2>📡 Sensor Inputs</h2>
+                </div>
+
+                <!-- Quick Presets -->
+                <div class="presets-bar">
+                    <button class="preset-btn" onclick="applyPreset('relaxed')">
+                        <span class="preset-emoji">😌</span> Relaxed
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset('moderate')">
+                        <span class="preset-emoji">😐</span> Moderate
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset('stressed')">
+                        <span class="preset-emoji">😰</span> Stressed
+                    </button>
+                    <button class="preset-btn" onclick="applyPreset('random')">
+                        <span class="preset-emoji">🎲</span> Random
+                    </button>
+                </div>
+
+                <div class="sensors-grid">
+                    <!-- ECG / Heart Rate -->
+                    <div class="sensor-card" data-sensor="heartRate">
+                        <div class="sensor-header">
+                            <div class="sensor-icon" style="--sensor-color: #00f5d4">❤️</div>
+                            <div class="sensor-info">
+                                <span class="sensor-name">Heart Rate</span>
+                                <span class="sensor-unit">(BPM)</span>
+                            </div>
+                            <div class="sensor-display" id="display-heartRate">72</div>
+                        </div>
+                        <input type="range" class="sensor-slider" id="slider-heartRate" 
+                               min="40" max="200" value="72" step="1"
+                               oninput="updateSensor('heartRate', this.value)"
+                               style="--slider-color: #00f5d4">
+                        <div class="sensor-range">
+                            <span>40</span><span>Normal: 60-100</span><span>200</span>
+                        </div>
+                    </div>
+
+                    <!-- EDA / Skin Conductance -->
+                    <div class="sensor-card" data-sensor="eda">
+                        <div class="sensor-header">
+                            <div class="sensor-icon" style="--sensor-color: #fee440">💧</div>
+                            <div class="sensor-info">
+                                <span class="sensor-name">Skin Conductance</span>
+                                <span class="sensor-unit">(µS)</span>
+                            </div>
+                            <div class="sensor-display" id="display-eda">5.0</div>
+                        </div>
+                        <input type="range" class="sensor-slider" id="slider-eda" 
+                               min="0" max="40" value="5" step="0.1"
+                               oninput="updateSensor('eda', this.value)"
+                               style="--slider-color: #fee440">
+                        <div class="sensor-range">
+                            <span>0</span><span>Normal: 1-10</span><span>40</span>
+                        </div>
+                    </div>
+
+                    <!-- EMG -->
+                    <div class="sensor-card" data-sensor="emg">
+                        <div class="sensor-header">
+                            <div class="sensor-icon" style="--sensor-color: #f72585">💪</div>
+                            <div class="sensor-info">
+                                <span class="sensor-name">EMG Activity</span>
+                                <span class="sensor-unit">(%)</span>
+                            </div>
+                            <div class="sensor-display" id="display-emg">15</div>
+                        </div>
+                        <input type="range" class="sensor-slider" id="slider-emg" 
+                               min="0" max="100" value="15" step="1"
+                               oninput="updateSensor('emg', this.value)"
+                               style="--slider-color: #f72585">
+                        <div class="sensor-range">
+                            <span>0</span><span>Normal: 5-25</span><span>100</span>
+                        </div>
+                    </div>
+
+                    <!-- Respiration Rate -->
+                    <div class="sensor-card" data-sensor="respRate">
+                        <div class="sensor-header">
+                            <div class="sensor-icon" style="--sensor-color: #7209b7">🫁</div>
+                            <div class="sensor-info">
+                                <span class="sensor-name">Respiration Rate</span>
+                                <span class="sensor-unit">(BrPM)</span>
+                            </div>
+                            <div class="sensor-display" id="display-respRate">16</div>
+                        </div>
+                        <input type="range" class="sensor-slider" id="slider-respRate" 
+                               min="8" max="40" value="16" step="1"
+                               oninput="updateSensor('respRate', this.value)"
+                               style="--slider-color: #7209b7">
+                        <div class="sensor-range">
+                            <span>8</span><span>Normal: 12-20</span><span>40</span>
+                        </div>
+                    </div>
+
+                    <!-- Body Temperature -->
+                    <div class="sensor-card" data-sensor="temp">
+                        <div class="sensor-header">
+                            <div class="sensor-icon" style="--sensor-color: #ff6b35">🌡️</div>
+                            <div class="sensor-info">
+                                <span class="sensor-name">Body Temperature</span>
+                                <span class="sensor-unit">(°C)</span>
+                            </div>
+                            <div class="sensor-display" id="display-temp">36.6</div>
+                        </div>
+                        <input type="range" class="sensor-slider" id="slider-temp" 
+                               min="30" max="42" value="36.6" step="0.1"
+                               oninput="updateSensor('temp', this.value)"
+                               style="--slider-color: #ff6b35">
+                        <div class="sensor-range">
+                            <span>30</span><span>Normal: 36-37.5</span><span>42</span>
+                        </div>
+                    </div>
+
+                    <!-- Accelerometer X -->
+                    <div class="sensor-card" data-sensor="accX">
+                        <div class="sensor-header">
+                            <div class="sensor-icon" style="--sensor-color: #4cc9f0">📐</div>
+                            <div class="sensor-info">
+                                <span class="sensor-name">Accel X</span>
+                                <span class="sensor-unit">(g)</span>
+                            </div>
+                            <div class="sensor-display" id="display-accX">0.0</div>
+                        </div>
+                        <input type="range" class="sensor-slider" id="slider-accX" 
+                               min="-10" max="10" value="0" step="0.1"
+                               oninput="updateSensor('accX', this.value)"
+                               style="--slider-color: #4cc9f0">
+                        <div class="sensor-range">
+                            <span>-10</span><span>Rest: ~0</span><span>10</span>
+                        </div>
+                    </div>
+
+                    <!-- Accelerometer Y -->
+                    <div class="sensor-card" data-sensor="accY">
+                        <div class="sensor-header">
+                            <div class="sensor-icon" style="--sensor-color: #4cc9f0">📐</div>
+                            <div class="sensor-info">
+                                <span class="sensor-name">Accel Y</span>
+                                <span class="sensor-unit">(g)</span>
+                            </div>
+                            <div class="sensor-display" id="display-accY">0.0</div>
+                        </div>
+                        <input type="range" class="sensor-slider" id="slider-accY" 
+                               min="-10" max="10" value="0" step="0.1"
+                               oninput="updateSensor('accY', this.value)"
+                               style="--slider-color: #4cc9f0">
+                        <div class="sensor-range">
+                            <span>-10</span><span>Rest: ~0</span><span>10</span>
+                        </div>
+                    </div>
+
+                    <!-- Accelerometer Z -->
+                    <div class="sensor-card" data-sensor="accZ">
+                        <div class="sensor-header">
+                            <div class="sensor-icon" style="--sensor-color: #4cc9f0">📐</div>
+                            <div class="sensor-info">
+                                <span class="sensor-name">Accel Z</span>
+                                <span class="sensor-unit">(g)</span>
+                            </div>
+                            <div class="sensor-display" id="display-accZ">0.0</div>
+                        </div>
+                        <input type="range" class="sensor-slider" id="slider-accZ" 
+                               min="-10" max="10" value="0" step="0.1"
+                               oninput="updateSensor('accZ', this.value)"
+                               style="--slider-color: #4cc9f0">
+                        <div class="sensor-range">
+                            <span>-10</span><span>Rest: ~0</span><span>10</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Results -->
+            <section id="results-panel">
+                <div class="section-header">
+                    <h2>🧠 AI Prediction</h2>
+                </div>
+
+                <!-- Stress Gauge -->
+                <div class="gauge-container" id="gauge-container">
+                    <div class="gauge-bg">
+                        <svg viewBox="0 0 200 120" class="gauge-svg">
+                            <defs>
+                                <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" style="stop-color:#00f5d4"/>
+                                    <stop offset="50%" style="stop-color:#fee440"/>
+                                    <stop offset="100%" style="stop-color:#f72585"/>
+                                </linearGradient>
+                            </defs>
+                            <!-- Background arc -->
+                            <path d="M 20 100 A 80 80 0 0 1 180 100" 
+                                  fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14" stroke-linecap="round"/>
+                            <!-- Value arc -->
+                            <path id="gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" 
+                                  fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round"
+                                  stroke-dasharray="251.3" stroke-dashoffset="251.3"/>
+                        </svg>
+                        <div class="gauge-value-container">
+                            <span class="gauge-value" id="gauge-value">--</span>
+                            <span class="gauge-unit">%</span>
+                        </div>
+                    </div>
+                    <div class="gauge-label" id="gauge-label">Awaiting Analysis</div>
+                </div>
+
+                <!-- Classification Result -->
+                <div class="result-card" id="result-card">
+                    <div class="result-status" id="result-status">
+                        <div class="status-icon" id="status-icon">⏳</div>
+                        <div class="status-text" id="status-text">Ready to Analyze</div>
+                        <div class="inference-badge" id="inference-mode" style="display:none"></div>
+                    </div>
+                    <div class="result-confidence" id="result-confidence" style="display:none">
+                        <span class="conf-label">Confidence:</span>
+                        <div class="conf-bar">
+                            <div class="conf-fill" id="conf-fill"></div>
+                        </div>
+                        <span class="conf-value" id="conf-value">0%</span>
+                    </div>
+                </div>
+
+                <!-- Feature Analysis -->
+                <div class="analysis-card" id="analysis-card" style="display:none">
+                    <h3>📊 Feature Analysis</h3>
+                    <div class="feature-bars" id="feature-bars"></div>
+                </div>
+
+                <!-- Model Info -->
+                <div class="model-info-card">
+                    <h3>🔬 Model Architecture</h3>
+                    <div class="model-specs">
+                        <div class="spec-item">
+                            <span class="spec-label">Type</span>
+                            <span class="spec-value">1D Convolutional Neural Network</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Dataset</span>
+                            <span class="spec-value">WESAD (Wearable Stress & Affect)</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Sensors</span>
+                            <span class="spec-value">ECG, EDA, EMG, Resp, Temp, ACC(x,y,z)</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Window</span>
+                            <span class="spec-value">5 sec @ 700Hz (3500 samples)</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Layers</span>
+                            <span class="spec-value">Conv1D → BN → Pool → Dense</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Accuracy</span>
+                            <span class="spec-value highlight">99.09%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer id="app-footer">
+        <p>StressVision AI — Powered by 1D CNN Deep Learning | WESAD Dataset | 
+           <span class="footer-note">TensorFlow.js Real-Time Inference Engine</span>
+        </p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
